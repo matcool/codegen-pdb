@@ -1,0 +1,27 @@
+name: Build
+
+on: push
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download LLVM
+      run: |
+        curl -L https://github.com/c3lang/win-llvm/releases/download/llvm_19_1_5/llvm-19.1.5-windows-amd64-msvc17-msvcrt.7z -o llvm.7z
+        7z x llvm.7z
+        rm llvm.7z
+        mv llvm-19.1.5-windows-amd64-msvc17-msvcrt llvm
+
+    - name: Build
+      run: |
+        cmake -B build -DLLVM_DIR="llvm/lib/cmake/llvm" -Wno-dev
+        cmake --build build --config Release --parallel
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        path: build/Release/CodegenPDB.exe
