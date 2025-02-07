@@ -114,13 +114,15 @@ void PdbCreator::processGSI(nlohmann::json const& data) {
         auto name = cl["name"].get<std::string>();
         for (auto const& f : cl["functions"]) {
             auto func = name + "::" + f["name"].get<std::string>();
-            auto addr = f["bindings"]["win"];
-            if (addr.is_number()) {
+            auto addrJson = f["bindings"]["win"];
+            if (addrJson.is_number()) {
+                auto addr = addrJson.get<uintptr_t>();
+                m_highestFuncAddr = std::max(m_highestFuncAddr, addr);
                 // leak the string because llvm doesnt own it
                 // but it needs to live until the pdb is saved
                 auto* data = (char*)malloc(func.size() + 1);
                 strcpy(data, func.c_str());
-                Publics.push_back(createPublicSymbol(data, addr.get<uintptr_t>()));
+                Publics.push_back(createPublicSymbol(data, addr));
             }
         }
     }
@@ -142,10 +144,9 @@ bool PdbCreator::processSections() {
     strcpy(textSection.Name, ".text");
     textSection.Characteristics = llvm::COFF::IMAGE_SCN_CNT_CODE | llvm::COFF::IMAGE_SCN_MEM_EXECUTE | llvm::COFF::IMAGE_SCN_MEM_READ;
     textSection.VirtualAddress = 0x1000;
-    // TODO: estimate size from highest function address or something
-    textSection.VirtualSize = 0x004F92AC;
+    textSection.VirtualSize = m_highestFuncAddr + 0x100;
+    textSection.SizeOfRawData = ((textSection.VirtualSize / 0x100) + 1) * 0x100;
     textSection.PointerToRawData = 0x400;
-    textSection.SizeOfRawData = 0x004F9400;
 
     std::vector<llvm::object::coff_section> sections;
     sections.push_back(textSection);
